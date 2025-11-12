@@ -1,0 +1,172 @@
+---
+title: "Projeto final ME415"
+author: "Vitor Macedo 204390, Luiza Bernardi 236218, Leila Ribeiro 177660"
+date: "2025-11-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Pacotes utilizados
+```{r}
+library(tidyverse)  
+library(car)
+library(ARTool)
+library(emmeans)
+```
+
+
+# Projeto final ME415
+```{r}
+dados <- read.csv("C:/Users/Luiza/Documents/vitamina.csv")
+dados$Temperatura <- factor(dados$Temperatura, 
+                            levels = c("fria", "ambiente", "quente"))
+dados$Água <- factor(dados$Água, 
+                     levels = c("natural", "salinizada"))
+
+```
+
+```{r}
+head(dados)
+```
+
+## Análise Exploratória
+```{r}
+exploratoria <- dados %>%
+  group_by(Temperatura, Água) %>%
+  summarise(
+    contagem = n(),
+    tempo_medio = mean(Tempo),
+    tempo_min = min(Tempo),
+    tempo_max = max(Tempo)
+  )
+exploratoria
+```
+## == TEMPO DE DISSOLUÇÃO DA VITAMINA C - BOXPLOT ==
+```{r}
+ggplot(dados, aes(x = Temperatura, y = Tempo, fill = Água)) +
+  geom_boxplot() +
+  labs(
+    y = "Tempo de Dissolução (segundos)",
+    fill = "Salinidade")+
+  theme_minimal()
+```
+
+## == MÉDIAS POR TEMPO DE DISSOLUÇÃO - GRÁFICO DE LINHA == 
+```{r}
+# 1. Precisamos calcular as médias primeiro
+df_medias <- dados %>%
+  group_by(Temperatura, Água) %>%
+  summarise(tempo_medio = mean(Tempo), 
+            desvpad = sd(Tempo, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# 2. Agora plotamos as médias
+ggplot(df_medias, aes(x = Temperatura, y = tempo_medio, 
+                      group = Água, color = Água)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 3) +
+  labs(
+    x = "Temperatura",
+    y = "Tempo Médio (segundos)",
+    color = "Salinidade"
+  ) +
+   geom_text(aes(label = paste0("±", round(desvpad, 0))), 
+          color = "black", size = 2.8, vjust = -0.7, fontface = "italic")+
+  theme_minimal()
+
+
+
+```
+
+## ==== ANOVA ====
+
+```{r}
+modelo_anova <- aov(Tempo ~ Temperatura * Água, data = dados)
+
+print("--- Tabela da ANOVA de Dois Fatores ---")
+summary(modelo_anova)
+```
+```{r}
+# --- 1. Checagem de Normalidade dos Resíduos ---
+
+# Visual (Q-Q Plot): Pontos devem seguir a linha tracejada
+# "which = 2" seleciona o gráfico Q-Q
+plot(modelo_anova, which = 2)
+
+# Teste estatístico (Shapiro-Wilk)
+# Se p > 0.05, os resíduos SÃO normais (o que é bom).
+# (O nosso vai falhar, p < 0.05, como esperado)
+shapiro.test(residuals(modelo_anova))
+
+
+# --- 2. Checagem de Homogeneidade das Variâncias ---
+# (Precisamos do pacote 'car')
+# Teste de Levene
+# Se p > 0.05, as variâncias SÃO homogêneas (o que é bom).
+leveneTest(modelo_anova)
+
+# Visual (Residuals vs Fitted): "Nuvem" de pontos deve ser aleatória
+# sem padrão (ex: funil)
+# "which = 1" seleciona este gráfico
+plot(modelo_anova, which = 1)
+
+
+
+```
+
+```{r}
+# Rodar o Teste de Tukey (Honest Significant Difference)
+# Focamos no fator 'temperatura'
+print("--- Teste Post-Hoc de Tukey para Temperatura ---")
+TukeyHSD(modelo_anova, which = "Temperatura")
+```
+
+## ====  Teste não paramétrico ====
+
+```{r}
+m <- art(Tempo ~ Temperatura * Água, data = dados)
+anova_m <- anova(m)
+
+summary(modelo_anova)
+anova_m
+```
+ART esse é mais robusto
+Por que usar: é atualmente a escolha mais prática para designs fatoriais não-paramétricos com interação. Alinha e ranqueia os dados de modo que os efeitos principais e a interação possam ser testados com um modelo ANOVA usual sobre os ranks alinhados.
+
+Vantagem: permite testar main effects e interação; aceita comparações post-hoc.
+```{r}
+
+modelo.art <- art(Tempo ~ Temperatura * Água, data = dados)
+
+# ANOVA sobre ranks alinhados
+anova(modelo.art)
+
+```
+TESTE POS-HOC
+Depois que você faz uma ANOVA e encontra um resultado significativo, o teste te diz apenas que há diferença entre os grupos, mas não diz quais grupos diferem entre si.
+
+É aí que entram os testes post-hoc (“depois do fato”):
+eles comparam cada par de grupos para descobrir onde estão as diferenças.
+```{r}
+emmeans(artlm(modelo.art, "Temperatura"), pairwise ~ Temperatura, adjust = "tukey")
+emmeans(artlm(modelo.art, "Água"), pairwise ~ Água, adjust = "tukey")
+emmeans(artlm(modelo.art, "Temperatura:Água"), pairwise ~ Temperatura:Água)
+```
+
+====== citar o r e pacotes utilizados =====
+
+```{r}
+citation()
+citation("tidyverse")
+citation("car")
+citation("ARTool")
+citation("emmeans")
+```
+
+
+
+
