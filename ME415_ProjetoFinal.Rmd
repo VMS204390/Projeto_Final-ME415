@@ -38,12 +38,14 @@ exploratoria <- dados %>%
   group_by(Temperatura, Água) %>%
   summarise(
     contagem = n(),
-    tempo_medio = mean(Tempo),
-    tempo_min = min(Tempo),
-    tempo_max = max(Tempo)
+    tempo_medio = round(mean(Tempo), 2),
+    desvio_padrao = round(sd(Tempo), 2),
+    tempo_min = round(min(Tempo), 2),
+    tempo_max = round(max(Tempo), 2)
   )
 exploratoria
 ```
+
 ## == TEMPO DE DISSOLUÇÃO DA VITAMINA C - BOXPLOT ==
 ```{r}
 ggplot(dados, aes(x = Temperatura, y = Tempo, fill = Água)) +
